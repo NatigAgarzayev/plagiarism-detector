@@ -11,7 +11,19 @@ def preprocess_text(text):
     text = re.sub(r'[^a-zA-Z0-9 ]', '', text)  # Remove special characters
     text = text.lower()  # Convert to lowercase
     return text
+def calculate_overall_similarity(results):
+    """Calculate the average n-gram similarity percentage across all documents."""
+    similarities = [result['ngram_similarity'] for result in results]
+    return sum(similarities) / len(similarities) if similarities else 0
 
+def plagiarism_status(overall_rate):
+    """Determine the plagiarism status and color based on the rate."""
+    if overall_rate < 40:
+        return "OK", "green"
+    elif 40 <= overall_rate < 75:
+        return "Warning", "orange"
+    else:
+        return "Plagiarized", "red"
 # 2. Custom Edit Distance (Levenshtein Distance)
 def edit_distance(s1, s2):
     m, n = len(s1), len(s2)
@@ -98,8 +110,20 @@ def detect_plagiarism(submission, repository):
 
 # 7. Enhanced Report Visualization
 def visualize_results(results, repository):
+    overall_similarity = calculate_overall_similarity(results)
+    status, color = plagiarism_status(overall_similarity)
+
+    # Display overall plagiarism rate and status
+    st.header("Plagiarism Report")
+    st.markdown(
+        f"<h3 style='color:{color};'>Overall Plagiarism Rate: {overall_similarity:.2f}% ({status})</h3>",
+        unsafe_allow_html=True
+    )
+
+    # Visualize individual document comparisons
     for result in results:
-        st.subheader(f"Document {result['doc_index']}")
+        doc_label = "Submission" if result['doc_index'] == 0 else f"Repository Document {result['doc_index']}"
+        st.subheader(doc_label)
 
         st.write(f"Edit Distance: {result['edit_distance']}")
         st.write(f"N-Gram Similarity: {result['ngram_similarity']:.2f}%")
@@ -107,16 +131,15 @@ def visualize_results(results, repository):
         st.write(f"Common Token Count: {result['common_count']}")
         st.write(f"Common Tokens: {', '.join(result['common_tokens'])}")
 
-        # Add a bar chart to visualize similarity metrics
+        # Bar chart for metrics
         metrics = [result['edit_distance'], result['ngram_similarity'], result['common_count']]
         labels = ['Edit Distance (lower is better)', 'N-Gram Similarity (%)', 'Common Token Count']
 
         fig, ax = plt.subplots()
         ax.barh(labels, metrics, color=['red', 'green', 'blue'])
         ax.set_xlabel("Values")
-        ax.set_title(f"Metrics for Document {result['doc_index']}")
+        ax.set_title(f"Metrics for {doc_label}")
         st.pyplot(fig)
-
 # 8. Streamlit UI for Plagiarism Detection
 def read_file(file):
     if file.name.endswith('.txt'):
@@ -130,26 +153,41 @@ def read_file(file):
     else:
         return ""
 
+# Updated plagiarism_ui function
 def plagiarism_ui():
     st.title("Plagiarism Detection System")
 
     st.sidebar.header("Input Options")
+    st.sidebar.subheader("Input 1")
+
+    # Submission Text or File (Mutually Exclusive)
     submission_text = st.sidebar.text_area("Enter the Submission Text")
     submission_file = st.sidebar.file_uploader("Or Upload a Submission File", type=["txt", "pdf"])
 
-    repository_text = st.sidebar.text_area("Enter Repository Text")
-    repository_files = st.sidebar.file_uploader("Upload Repository Files (Multiple)", type=["txt", "pdf"], accept_multiple_files=True)
+    if submission_text and submission_file:
+        st.sidebar.error("Please provide either a submission text or upload a file, not both.")
+        submission_text = ""
+        submission_file = None
 
     if submission_file:
         submission_text = read_file(submission_file)
+    st.sidebar.subheader("Input 2")
+
+    # Repository Text or File (Mutually Exclusive)
+    repository_text = st.sidebar.text_area("Enter Repository Text")
+    repository_file = st.sidebar.file_uploader("Or Upload a Repository File", type=["txt", "pdf"])
+
+    if repository_text and repository_file:
+        st.sidebar.error("Please provide either a repository text or upload a file, not both.")
+        repository_text = ""
+        repository_file = None
 
     repository_contents = []
     if repository_text:
-        repository_contents.append(repository_text)  # Treat the text area as one document
+        repository_contents.append(repository_text)
 
-    if repository_files:
-        for file in repository_files:
-            repository_contents.append(read_file(file))
+    if repository_file:
+        repository_contents.append(read_file(repository_file))
 
     if st.sidebar.button("Analyze"):
         if submission_text and repository_contents:
@@ -157,7 +195,7 @@ def plagiarism_ui():
             st.header("Results")
             visualize_results(results, repository_contents)
         else:
-            st.error("Please provide both submission text and repository files/texts.")
+            st.error("Please provide both submission text and repository file/text.")
 
 # Example Usage
 if __name__ == "__main__":
