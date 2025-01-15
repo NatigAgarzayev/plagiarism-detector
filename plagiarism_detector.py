@@ -137,19 +137,19 @@ def plagiarism_ui():
     submission_text = st.sidebar.text_area("Enter the Submission Text")
     submission_file = st.sidebar.file_uploader("Or Upload a Submission File", type=["txt", "pdf"])
 
+    repository_text = st.sidebar.text_area("Enter Repository Text")
     repository_files = st.sidebar.file_uploader("Upload Repository Files (Multiple)", type=["txt", "pdf"], accept_multiple_files=True)
-    repository_texts = st.sidebar.text_area("Or Enter Repository Texts (Separate by New Line)").split('\n')
 
     if submission_file:
         submission_text = read_file(submission_file)
 
     repository_contents = []
+    if repository_text:
+        repository_contents.append(repository_text)  # Treat the text area as one document
+
     if repository_files:
         for file in repository_files:
             repository_contents.append(read_file(file))
-
-    if repository_texts:
-        repository_contents.extend(repository_texts)
 
     if st.sidebar.button("Analyze"):
         if submission_text and repository_contents:
